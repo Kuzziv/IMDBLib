@@ -47,9 +47,7 @@ namespace IMDBLib.Services.DAOServices
 
         public async Task<List<MovieView>> GetAllMovies()
         {
-            var movies = await _dbContext.MovieViews.ToListAsync();
-
-            return movies;
+            throw new NotImplementedException();
         }
 
         public async  Task<List<Title>> GetTitles()

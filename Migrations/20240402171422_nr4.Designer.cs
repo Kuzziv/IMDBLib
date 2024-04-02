@@ -4,6 +4,7 @@ using IMDBLib.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IMDBLib.Migrations
 {
     [DbContext(typeof(MyDbContext))]
-    partial class MyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240402171422_nr4")]
+    partial class nr4
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -34,7 +37,7 @@ namespace IMDBLib.Migrations
 
                     b.HasIndex("TitlesTconst");
 
-                    b.ToTable("GenreTitle", (string)null);
+                    b.ToTable("GenreTitle");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.Movie.Genre", b =>
@@ -51,7 +54,7 @@ namespace IMDBLib.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Genres", (string)null);
+                    b.ToTable("Genres");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.Movie.Title", b =>
@@ -86,7 +89,7 @@ namespace IMDBLib.Migrations
 
                     b.HasIndex("TitleTypeId");
 
-                    b.ToTable("Titles", (string)null);
+                    b.ToTable("Titles");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.Movie.TitleType", b =>
@@ -103,7 +106,7 @@ namespace IMDBLib.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("TitleTypes", (string)null);
+                    b.ToTable("TitleTypes");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.Movie.Title_Genre", b =>
@@ -121,7 +124,7 @@ namespace IMDBLib.Migrations
 
                     b.HasIndex("GenreId");
 
-                    b.ToTable("Title_Genres", (string)null);
+                    b.ToTable("Title_Genres");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.People.Crew", b =>
@@ -143,7 +146,7 @@ namespace IMDBLib.Migrations
 
                     b.HasKey("Nconst");
 
-                    b.ToTable("Crews", (string)null);
+                    b.ToTable("Crews");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.People.Crew_Profession", b =>
@@ -167,7 +170,7 @@ namespace IMDBLib.Migrations
 
                     b.HasIndex("JobId");
 
-                    b.ToTable("Crew_Professions", (string)null);
+                    b.ToTable("Crew_Professions");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.People.Directors", b =>
@@ -191,7 +194,7 @@ namespace IMDBLib.Migrations
 
                     b.HasIndex("Title_CrewId");
 
-                    b.ToTable("Directors", (string)null);
+                    b.ToTable("Directors");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.People.Job", b =>
@@ -208,7 +211,7 @@ namespace IMDBLib.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Jobs", (string)null);
+                    b.ToTable("Jobs");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.People.Known_For_Titles", b =>
@@ -233,7 +236,7 @@ namespace IMDBLib.Migrations
 
                     b.HasIndex("TitleTconst");
 
-                    b.ToTable("Know_For_Titles", (string)null);
+                    b.ToTable("Know_For_Titles");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.People.Title_Crew", b =>
@@ -258,7 +261,7 @@ namespace IMDBLib.Migrations
                     b.HasIndex("TitleTconst")
                         .IsUnique();
 
-                    b.ToTable("Title_Crews", (string)null);
+                    b.ToTable("Title_Crews");
                 });
 
             modelBuilder.Entity("IMDBLib.Models.People.Writers", b =>
@@ -282,51 +285,7 @@ namespace IMDBLib.Migrations
 
                     b.HasIndex("WriterNconst");
 
-                    b.ToTable("Writers", (string)null);
-                });
-
-            modelBuilder.Entity("IMDBLib.Models.Views.MovieView", b =>
-                {
-                    b.Property<long>("ID")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("EndYear")
-                        .HasColumnType("int");
-
-                    b.Property<string>("GenreNames")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsAdult")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("OriginalTitle")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PrimaryTitle")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RuntimeMinutes")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StartYear")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Tconst")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("ID");
-
-                    b.ToTable((string)null);
-
-                    b.ToView("MovieView", (string)null);
+                    b.ToTable("Writers");
                 });
 
             modelBuilder.Entity("GenreTitle", b =>

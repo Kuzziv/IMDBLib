@@ -25,7 +25,10 @@ namespace IMDBLib.DataBase
         public DbSet<Writers> Writers { get; set; }
         public DbSet<Title_Crew> Title_Crews { get; set; }
         public DbSet<Job> Jobs { get; set; }
-        public DbSet<MovieView> MovieViews { get; set; }
+        public DbSet<MovieView> MovieViews { get; set; } // Add DbSet for MovieView
+        public DbSet<PersonView> PersonViews { get; set; }
+
+
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -34,8 +37,11 @@ namespace IMDBLib.DataBase
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // Define the MovieView table
+            // Define MovieView entity
             modelBuilder.Entity<MovieView>().ToView("MovieView");
+
+            // Define PersonView entity
+            modelBuilder.Entity<PersonView>().ToView("PersonView");
 
             // Define relationship between Title and Genre through Title_Genre
             modelBuilder.Entity<Title_Genre>()
@@ -114,6 +120,37 @@ namespace IMDBLib.DataBase
                 .HasForeignKey<Title_Crew>(tc => tc.TitleTconst);
 
 
+        }
+
+        public IQueryable<MovieView> GetMovieView()
+        {
+            return Set<MovieView>().FromSqlRaw(@"
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY dbo.Titles.Tconst) AS ID, 
+                    dbo.Titles.Tconst, 
+                    dbo.Titles.PrimaryTitle, 
+                    dbo.Titles.OriginalTitle, 
+                    dbo.Titles.IsAdult, 
+                    dbo.Titles.StartYear, 
+                    dbo.Titles.EndYear, 
+                    dbo.Titles.RuntimeMinutes, 
+                    dbo.TitleTypes.Type, 
+                    STRING_AGG(dbo.Genres.GenreName, ', ') AS GenreNames 
+                FROM 
+                    dbo.Genres 
+                    INNER JOIN dbo.Title_Genres ON dbo.Genres.Id = dbo.Title_Genres.GenreId 
+                    INNER JOIN dbo.Titles ON dbo.Title_Genres.TitleTconst = dbo.Titles.Tconst 
+                    INNER JOIN dbo.TitleTypes ON dbo.Titles.TitleTypeId = dbo.TitleTypes.Id 
+                GROUP BY 
+                    dbo.Titles.Tconst, 
+                    dbo.Titles.PrimaryTitle, 
+                    dbo.Titles.OriginalTitle, 
+                    dbo.Titles.IsAdult, 
+                    dbo.Titles.StartYear, 
+                    dbo.Titles.EndYear, 
+                    dbo.Titles.RuntimeMinutes, 
+                    dbo.TitleTypes.Type
+            ");
         }
 
     }
