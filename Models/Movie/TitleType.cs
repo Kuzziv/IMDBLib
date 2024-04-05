@@ -20,7 +20,7 @@ namespace IMDBLib.Models.Movie
         public TitleType()
         {
             // Increment the static variable and assign it to the Id property
-            Id = ++_lastId;
+            //Id = ++_lastId;
         }
 
         public ICollection<Title> Titles { get; set; }

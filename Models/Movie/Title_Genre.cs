@@ -26,7 +26,7 @@ namespace IMDBLib.Models.Movie
         public Title_Genre()
         {
             // Increment the static variable and assign it to the Id property
-            Id = ++_lastId;
+            //Id = ++_lastId;
         }
     }
 }

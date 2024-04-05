@@ -20,14 +20,11 @@ namespace IMDBLib.Models.Movie
         public Genre()
         {
             // Increment the static variable and assign it to the Id property
-            Id = ++_lastId;
+            //Id = ++_lastId;
         }
 
         // Define the navigation property to TitleGenre
         public ICollection<Title_Genre> Title_Genres { get; set; }
-
-        // Define the navigation property to Title
-        public ICollection<Title> Titles { get; set; }
 
     }
 }

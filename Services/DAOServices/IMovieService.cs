@@ -11,13 +11,11 @@ namespace IMDBLib.Services.DAOServices
 {
     public interface IMovieService
     {
-        Task AddMovie(MovieDAO movieDAO);
-        Task<List<MovieDAO>> GetMovieListByTitle(string searchString);
-        Task<MovieDAO> GetMovieInfoByTconst(string tconst);
-        Task UpdateMovie(MovieDAO movieDAO);
-        Task DeleteMovie(string tconst);
-        Task<List<MovieView>> GetAllMovies();
-        Task<List<Title>> GetTitles();
+        Task<bool> AddMovie(TitleDAO TitleDAO);
+        Task<IEnumerable<MovieView>> GetMovieListByTitle(string searchString, int pageNumber, int pageSize);
+        Task<bool> UpdateMovie(TitleDAO titleDAO);
+        Task<bool> DeleteMovie(string tconst);
+        Task<IEnumerable<MovieView>> GetAllMovies(int pageNumber, int pageSize);
 
     }
 }

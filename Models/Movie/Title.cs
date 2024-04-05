@@ -32,9 +32,6 @@ namespace IMDBLib.Models.Movie
         // Define the navigation property to TitleGenre
         public ICollection<Title_Genre> Title_Genres { get; set; }
 
-        // Define the navigation property to Genre
-        public ICollection<Genre> Genres { get; set; }
-
         // Define the navigation property to TitleCrew
         public Title_Crew Title_Crew { get; set; }
 
