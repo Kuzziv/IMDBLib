@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Transactions;
 using IMDBLib.DataBase;
-using IMDBLib.Models; // Assuming your entity classes are in this namespace
+using IMDBLib.Models;
 using IMDBLib.Models.Movie;
 using IMDBLib.Models.People;
 using Microsoft.EntityFrameworkCore;
@@ -20,46 +20,39 @@ namespace IMDBLib.Services
             _dbContext = dbContext;
         }
 
-        public void ImportData(string titleFilePath, string nameFilePath, string titleCrewFilePath, int maxRecords = int.MaxValue)
+        public void ImportData(string titleFilePath, string nameFilePath, string titleCrewFilePath, int batchSize = 1000)
         {
             using (var transactionScope = new TransactionScope())
             {
                 try
                 {
-                    // Read and import data from title.basic file
-                    ImportTitlesFromFile(titleFilePath, maxRecords);
+                    ImportTitlesFromFile(titleFilePath, batchSize);
+                    ImportPersonsFromFile(nameFilePath, batchSize);
+                    ImportTitleCrewFromFile(titleCrewFilePath, batchSize);
 
-                    // Read and import data from name.basic file
-                    ImportPersonsFromFile(nameFilePath, maxRecords);
-
-                    // Read and import data from title.crew file
-                    ImportTitleCrewFromFile(titleCrewFilePath, maxRecords);
-
-                    // Save changes to persist imported data
                     _dbContext.SaveChanges();
 
-                    transactionScope.Complete(); // Commit the transaction if everything is successful
+                    transactionScope.Complete();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error occurred during data import: \n {ex}");
+                    Console.WriteLine($"Error occurred during data import: {ex}");
                 }
             }
         }
 
-        private void ImportTitlesFromFile(string filePath, int maxRecords)
+        private void ImportTitlesFromFile(string filePath, int batchSize)
         {
             try
             {
                 using (var streamReader = new StreamReader(filePath))
                 {
-                    // Skip header line
-                    streamReader.ReadLine();
+                    streamReader.ReadLine(); // Skip header line
 
-                    var titlesToAdd = new List<Title>(); // Create a list to store titles
+                    var titlesToAdd = new List<Title>();
                     int recordsProcessed = 0;
 
-                    while (!streamReader.EndOfStream && recordsProcessed < maxRecords)
+                    while (!streamReader.EndOfStream)
                     {
                         var line = streamReader.ReadLine();
                         var values = line.Split('\t');
@@ -74,20 +67,20 @@ namespace IMDBLib.Services
                             StartYear = values[5] == @"\N" ? 0 : int.Parse(values[5]),
                             EndYear = values[6] == @"\N" ? null : int.Parse(values[6]),
                             RuntimeMinutes = int.Parse(values[7]),
-                            TitleGenres = new List<TitleGenre>(), // Initialize empty list
-                            TitlePersons = new List<TitlePerson>() // Initialize empty list
+                            TitleGenres = new List<TitleGenre>(),
+                            TitlePersons = new List<TitlePerson>()
                         };
 
-                        // Parse and add genres
                         var genres = values[8].Split(',');
                         foreach (var genre in genres)
                         {
                             if (!string.IsNullOrEmpty(genre))
                             {
                                 int genreId;
-                                if (_dbContext.Genres.Any(g => g.GenreName == genre))
+                                var existingGenre = _dbContext.Genres.FirstOrDefault(g => g.GenreName == genre);
+                                if (existingGenre != null)
                                 {
-                                    genreId = _dbContext.Genres.First(g => g.GenreName == genre).GenreId;
+                                    genreId = existingGenre.GenreId;
                                 }
                                 else
                                 {
@@ -101,18 +94,17 @@ namespace IMDBLib.Services
                             }
                         }
 
-                        titlesToAdd.Add(title); // Add title to the list
+                        titlesToAdd.Add(title);
                         recordsProcessed++;
 
-                        if (titlesToAdd.Count >= 1000) // Insert in batches of 1000
+                        if (recordsProcessed % batchSize == 0)
                         {
-                            _dbContext.Titles.AddRange(titlesToAdd); // Bulk insert titles
-                            _dbContext.SaveChanges(); // Save changes
-                            titlesToAdd.Clear(); // Clear the list
+                            _dbContext.Titles.AddRange(titlesToAdd);
+                            _dbContext.SaveChanges();
+                            titlesToAdd.Clear();
                         }
                     }
 
-                    // Insert remaining titles
                     if (titlesToAdd.Any())
                     {
                         _dbContext.Titles.AddRange(titlesToAdd);
@@ -122,25 +114,22 @@ namespace IMDBLib.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error occurred during import of titles: \n {ex}");
+                Console.WriteLine($"Error occurred during import of titles: {ex}");
             }
         }
 
-
-
-        private void ImportPersonsFromFile(string filePath, int maxRecords)
+        private void ImportPersonsFromFile(string filePath, int batchSize)
         {
             try
             {
                 using (var streamReader = new StreamReader(filePath))
                 {
-                    // Skip header line
-                    streamReader.ReadLine();
+                    streamReader.ReadLine(); // Skip header line
 
-                    var personsToAdd = new List<Person>(); // Create a list to store persons
+                    var personsToAdd = new List<Person>();
                     int recordsProcessed = 0;
 
-                    while (!streamReader.EndOfStream && recordsProcessed < maxRecords)
+                    while (!streamReader.EndOfStream)
                     {
                         var line = streamReader.ReadLine();
                         var values = line.Split('\t');
@@ -151,33 +140,27 @@ namespace IMDBLib.Services
                             PrimaryName = values[1],
                             BirthYear = values[2] == @"\N" ? 0 : int.Parse(values[2]),
                             DeathYear = values[3] == @"\N" ? null : int.Parse(values[3]),
-                            TitlePersons = new List<TitlePerson>(), // Initialize empty list
-                            PersonProfessions = new List<PersonProfession>() // Initialize empty list
+                            TitlePersons = new List<TitlePerson>(),
+                            PersonProfessions = new List<PersonProfession>()
                         };
 
-                        // Parse and add professions
                         var professions = values[4].Split(',');
                         foreach (var professionName in professions)
                         {
                             if (!string.IsNullOrEmpty(professionName))
                             {
-                                // Check if the profession exists in the database
                                 var profession = _dbContext.Professions.FirstOrDefault(p => p.ProfessionName == professionName);
-
-                                // If the profession doesn't exist, create and add it to the database
                                 if (profession == null)
                                 {
                                     profession = new Profession { ProfessionName = professionName };
                                     _dbContext.Professions.Add(profession);
-                                    _dbContext.SaveChanges(); // Save changes to generate the professionId
+                                    _dbContext.SaveChanges();
                                 }
 
-                                // Associate the profession with the person
                                 person.PersonProfessions.Add(new PersonProfession { Nconst = person.Nconst, ProfessionId = profession.ProfessionId });
                             }
                         }
 
-                        // Parse and add knownForTitles (TitlePersons)
                         var knownForTitles = values[5].Split(',');
                         foreach (var knownForTitle in knownForTitles)
                         {
@@ -187,18 +170,17 @@ namespace IMDBLib.Services
                             }
                         }
 
-                        personsToAdd.Add(person); // Add person to the list
+                        personsToAdd.Add(person);
                         recordsProcessed++;
 
-                        if (personsToAdd.Count >= 1000) // Insert in batches of 1000
+                        if (recordsProcessed % batchSize == 0)
                         {
-                            _dbContext.Persons.AddRange(personsToAdd); // Bulk insert persons
-                            _dbContext.SaveChanges(); // Save changes
-                            personsToAdd.Clear(); // Clear the list
+                            _dbContext.Persons.AddRange(personsToAdd);
+                            _dbContext.SaveChanges();
+                            personsToAdd.Clear();
                         }
                     }
 
-                    // Insert remaining persons
                     if (personsToAdd.Any())
                     {
                         _dbContext.Persons.AddRange(personsToAdd);
@@ -208,22 +190,21 @@ namespace IMDBLib.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error occurred during import of persons: \n {ex}");
+                Console.WriteLine($"Error occurred during import of persons: {ex}");
             }
         }
 
-        private void ImportTitleCrewFromFile(string filePath, int maxRecords)
+        private void ImportTitleCrewFromFile(string filePath, int batchSize)
         {
             try
             {
                 using (var streamReader = new StreamReader(filePath))
                 {
-                    // Skip header line
-                    streamReader.ReadLine();
+                    streamReader.ReadLine(); // Skip header line
 
                     int recordsProcessed = 0;
 
-                    while (!streamReader.EndOfStream && recordsProcessed < maxRecords)
+                    while (!streamReader.EndOfStream)
                     {
                         var line = streamReader.ReadLine();
                         var values = line.Split('\t');
@@ -232,7 +213,6 @@ namespace IMDBLib.Services
                         var directorIds = values[1].Split(',').Where(id => id != @"\N").ToList();
                         var writerIds = values[2].Split(',').Where(id => id != @"\N").ToList();
 
-                        // Associate directors with titles
                         foreach (var directorId in directorIds)
                         {
                             if (_dbContext.Persons.Any(p => p.Nconst == directorId))
@@ -245,7 +225,6 @@ namespace IMDBLib.Services
                             }
                         }
 
-                        // Associate writers with titles
                         foreach (var writerId in writerIds)
                         {
                             if (_dbContext.Persons.Any(p => p.Nconst == writerId))
@@ -259,19 +238,20 @@ namespace IMDBLib.Services
                         }
 
                         recordsProcessed++;
+
+                        if (recordsProcessed % batchSize == 0)
+                        {
+                            _dbContext.SaveChanges();
+                        }
                     }
 
-                    _dbContext.SaveChanges(); // Save changes
+                    _dbContext.SaveChanges();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error occurred during import of title crew: \n {ex}");
+                Console.WriteLine($"Error occurred during import of title crew: {ex}");
             }
         }
-
-
-
-
     }
 }
