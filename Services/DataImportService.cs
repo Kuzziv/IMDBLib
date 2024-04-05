@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Channels;
 using System.Transactions;
 using IMDBLib.DataBase;
 using IMDBLib.Models;
@@ -20,19 +21,23 @@ namespace IMDBLib.Services
             _dbContext = dbContext;
         }
 
-        public void ImportData(string titleFilePath, string nameFilePath, string titleCrewFilePath, int batchSize = 1000)
+        public void ImportData(string titleFilePath, string nameFilePath, string titleCrewFilePath, int batchSize, int numberOfLines, int timeOutTime)
         {
-            using (var transactionScope = new TransactionScope())
+            using (var transactionScope = new TransactionScope(TransactionScopeOption.Required, TimeSpan.FromMinutes(timeOutTime)))
             {
                 try
                 {
-                    ImportTitlesFromFile(titleFilePath, batchSize);
-                    ImportPersonsFromFile(nameFilePath, batchSize);
-                    ImportTitleCrewFromFile(titleCrewFilePath, batchSize);
+                    CleanDatabase();
+
+                    Console.WriteLine("Process has started");
+                    ImportTitlesFromFile(titleFilePath, batchSize, numberOfLines);
+                    ImportPersonsFromFile(nameFilePath, batchSize, numberOfLines);
+                    ImportTitleCrewFromFile(titleCrewFilePath, batchSize, numberOfLines);
 
                     _dbContext.SaveChanges();
 
                     transactionScope.Complete();
+                    Console.WriteLine("Process has completed successfully");
                 }
                 catch (Exception ex)
                 {
@@ -41,18 +46,20 @@ namespace IMDBLib.Services
             }
         }
 
-        private void ImportTitlesFromFile(string filePath, int batchSize)
+        private void ImportTitlesFromFile(string filePath, int batchSize, int numberOfLines)
         {
             try
             {
+                Console.WriteLine("Titles process has started");
                 using (var streamReader = new StreamReader(filePath))
                 {
                     streamReader.ReadLine(); // Skip header line
 
                     var titlesToAdd = new List<Title>();
                     int recordsProcessed = 0;
+                    int totalLinesRead = 0;
 
-                    while (!streamReader.EndOfStream)
+                    while (!streamReader.EndOfStream && totalLinesRead < numberOfLines)
                     {
                         var line = streamReader.ReadLine();
                         var values = line.Split('\t');
@@ -64,9 +71,9 @@ namespace IMDBLib.Services
                             PrimaryTitle = values[2],
                             OriginalTitle = values[3],
                             IsAdult = values[4] == "1",
-                            StartYear = values[5] == @"\N" ? 0 : int.Parse(values[5]),
-                            EndYear = values[6] == @"\N" ? null : int.Parse(values[6]),
-                            RuntimeMinutes = int.Parse(values[7]),
+                            StartYear = ConvertStringToInt(values[5]) ?? 0,
+                            EndYear = ConvertStringToInt(values[6]),
+                            RuntimeMinutes = ConvertStringToInt(values[7]) ?? 0,
                             TitleGenres = new List<TitleGenre>(),
                             TitlePersons = new List<TitlePerson>()
                         };
@@ -96,9 +103,11 @@ namespace IMDBLib.Services
 
                         titlesToAdd.Add(title);
                         recordsProcessed++;
+                        totalLinesRead++;
 
                         if (recordsProcessed % batchSize == 0)
                         {
+                            Console.WriteLine("Titles has reached batch size. Saving changes. current line: " + totalLinesRead);
                             _dbContext.Titles.AddRange(titlesToAdd);
                             _dbContext.SaveChanges();
                             titlesToAdd.Clear();
@@ -109,6 +118,7 @@ namespace IMDBLib.Services
                     {
                         _dbContext.Titles.AddRange(titlesToAdd);
                         _dbContext.SaveChanges();
+                        Console.WriteLine("Titles process has successfully ended");
                     }
                 }
             }
@@ -118,18 +128,20 @@ namespace IMDBLib.Services
             }
         }
 
-        private void ImportPersonsFromFile(string filePath, int batchSize)
+        private void ImportPersonsFromFile(string filePath, int batchSize, int numberOfLines)
         {
             try
             {
+                Console.WriteLine("Persons process has started");
                 using (var streamReader = new StreamReader(filePath))
                 {
                     streamReader.ReadLine(); // Skip header line
 
                     var personsToAdd = new List<Person>();
                     int recordsProcessed = 0;
+                    int totalLinesRead = 0;
 
-                    while (!streamReader.EndOfStream)
+                    while (!streamReader.EndOfStream && totalLinesRead < numberOfLines)
                     {
                         var line = streamReader.ReadLine();
                         var values = line.Split('\t');
@@ -138,8 +150,8 @@ namespace IMDBLib.Services
                         {
                             Nconst = values[0],
                             PrimaryName = values[1],
-                            BirthYear = values[2] == @"\N" ? 0 : int.Parse(values[2]),
-                            DeathYear = values[3] == @"\N" ? null : int.Parse(values[3]),
+                            BirthYear = ConvertStringToInt(values[2]) ?? 0,
+                            DeathYear = ConvertStringToInt(values[3]),
                             TitlePersons = new List<TitlePerson>(),
                             PersonProfessions = new List<PersonProfession>()
                         };
@@ -161,20 +173,13 @@ namespace IMDBLib.Services
                             }
                         }
 
-                        var knownForTitles = values[5].Split(',');
-                        foreach (var knownForTitle in knownForTitles)
-                        {
-                            if (!string.IsNullOrEmpty(knownForTitle))
-                            {
-                                person.TitlePersons.Add(new TitlePerson { Tconst = knownForTitle, Nconst = person.Nconst });
-                            }
-                        }
-
                         personsToAdd.Add(person);
                         recordsProcessed++;
+                        totalLinesRead++;
 
                         if (recordsProcessed % batchSize == 0)
                         {
+                            Console.WriteLine("Persons has reached batch size. Saving changes. current line: " + totalLinesRead);
                             _dbContext.Persons.AddRange(personsToAdd);
                             _dbContext.SaveChanges();
                             personsToAdd.Clear();
@@ -185,6 +190,7 @@ namespace IMDBLib.Services
                     {
                         _dbContext.Persons.AddRange(personsToAdd);
                         _dbContext.SaveChanges();
+                        Console.WriteLine("Persons process has successfully ended");
                     }
                 }
             }
@@ -194,58 +200,61 @@ namespace IMDBLib.Services
             }
         }
 
-        private void ImportTitleCrewFromFile(string filePath, int batchSize)
+        private void ImportTitleCrewFromFile(string filePath, int batchSize, int numberOfLines)
         {
             try
             {
+                Console.WriteLine("TitleCrew process has started");
                 using (var streamReader = new StreamReader(filePath))
                 {
                     streamReader.ReadLine(); // Skip header line
 
                     int recordsProcessed = 0;
+                    int totalLinesRead = 0;
 
-                    while (!streamReader.EndOfStream)
+                    while (!streamReader.EndOfStream && totalLinesRead < numberOfLines)
                     {
                         var line = streamReader.ReadLine();
                         var values = line.Split('\t');
 
                         var titleId = values[0];
-                        var directorIds = values[1].Split(',').Where(id => id != @"\N").ToList();
-                        var writerIds = values[2].Split(',').Where(id => id != @"\N").ToList();
+                        var directorIds = ConvertStringToIntList(values[1]);
+                        var writerIds = ConvertStringToIntList(values[2]);
 
-                        foreach (var directorId in directorIds)
+                        if (directorIds != null)
                         {
-                            if (_dbContext.Persons.Any(p => p.Nconst == directorId))
+                            foreach (var directorId in directorIds)
                             {
-                                _dbContext.TitlePersons.Add(new TitlePerson { Tconst = titleId, Nconst = directorId });
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Director with Nconst {directorId} not found in Persons table. TitlePerson not added.");
+                                if (directorId.HasValue && _dbContext.Persons.Any(p => p.Nconst == directorId.Value.ToString()))
+                                {
+                                    _dbContext.TitlePersons.Add(new TitlePerson { Tconst = titleId, Nconst = directorId.Value.ToString() });
+                                }                                
                             }
                         }
-
-                        foreach (var writerId in writerIds)
-                        {
-                            if (_dbContext.Persons.Any(p => p.Nconst == writerId))
+                        
+                        if (writerIds != null)
+                        { 
+                            foreach (var writerId in writerIds)
                             {
-                                _dbContext.TitlePersons.Add(new TitlePerson { Tconst = titleId, Nconst = writerId });
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Writer with Nconst {writerId} not found in Persons table. TitlePerson not added.");
+                                if (writerId.HasValue && _dbContext.Persons.Any(p => p.Nconst == writerId.Value.ToString()))
+                                {
+                                    _dbContext.TitlePersons.Add(new TitlePerson { Tconst = titleId, Nconst = writerId.Value.ToString() });
+                                }                                
                             }
                         }
 
                         recordsProcessed++;
+                        totalLinesRead++;
 
                         if (recordsProcessed % batchSize == 0)
                         {
+                            Console.WriteLine("TitleCrew has reached batch size. Saving changes. current line: " + totalLinesRead);
                             _dbContext.SaveChanges();
                         }
                     }
 
                     _dbContext.SaveChanges();
+                    Console.WriteLine("TitleCrew process has successfully ended");
                 }
             }
             catch (Exception ex)
@@ -253,5 +262,71 @@ namespace IMDBLib.Services
                 Console.WriteLine($"Error occurred during import of title crew: {ex}");
             }
         }
+
+        private int? ConvertStringToInt(string value)
+        {
+            if (value == @"\N")
+            {
+                return null;
+            }
+            else
+            {
+                if (int.TryParse(value, out int result))
+                {
+                    return result;
+                }
+                else
+                {
+                    // Handle parsing failure, maybe log an error or throw an exception
+                    return null; // or throw an exception if you prefer
+                }
+            }
+        }
+
+        private List<int?> ConvertStringToIntList(string value)
+        {
+            if (value == @"\N")
+            {
+                return null;
+            }
+            else
+            {
+                var ids = value.Split(',').Select(id =>
+                {
+                    if (int.TryParse(id, out int result))
+                    {
+                        return (int?)result;
+                    }
+                    else
+                    {
+                        // Handle parsing failure, maybe log an error or throw an exception
+                        return null; // or throw an exception if you prefer
+                    }
+                }).ToList();
+
+                return ids;
+            }
+        }
+
+        public void CleanDatabase()
+        {
+            try
+            {
+                Console.WriteLine("Cleaning database...");
+                _dbContext.Database.ExecuteSqlRaw("DELETE FROM TitlePersons");
+                _dbContext.Database.ExecuteSqlRaw("DELETE FROM Titles");
+                _dbContext.Database.ExecuteSqlRaw("DELETE FROM Persons");
+                _dbContext.Database.ExecuteSqlRaw("DELETE FROM Professions");
+                _dbContext.Database.ExecuteSqlRaw("DELETE FROM PersonProfessions");
+                _dbContext.Database.ExecuteSqlRaw("DELETE FROM TitleGenres");
+                _dbContext.Database.ExecuteSqlRaw("DELETE FROM Genres");
+                Console.WriteLine("Database cleaned successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error occurred during cleaning of database: {ex}");
+            }
+        }
+
     }
 }
