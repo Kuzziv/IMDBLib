@@ -33,7 +33,9 @@ namespace IMDBLib.Services
                 await Console.Out.WriteLineAsync("Load of entity has started");
 
                 // Calculate total number of batches
-                int totalBatches = (int)Math.Ceiling((double)numLines / batchSize);
+                int totalBatches = (int)Math.Ceiling((double)titleRecords.Count / batchSize) +
+                           (int)Math.Ceiling((double)nameRecords.Count / batchSize) +
+                           (int)Math.Ceiling((double)crewRecords.Count / batchSize);
                 int currentBatch = 0;
 
                 await LinkAndSaveDataAsync(titleRecords, nameRecords, crewRecords, batchSize, () =>
