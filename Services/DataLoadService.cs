@@ -52,10 +52,10 @@ namespace IMDBLib.Services
 
 
         private async Task LinkAndSaveDataAsync(Dictionary<string, TitleBasicsRecord> titleRecords,
-                       Dictionary<string, NameBasicsRecord> nameRecords,
-                       Dictionary<string, CrewBasicsRecord> crewRecords,
-                       int batchSize,
-                       Action batchCompletedCallback)
+                   Dictionary<string, NameBasicsRecord> nameRecords,
+                   Dictionary<string, CrewBasicsRecord> crewRecords,
+                   int batchSize,
+                   Action batchCompletedCallback)
         {
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
@@ -111,13 +111,28 @@ namespace IMDBLib.Services
 
                     foreach (var nameRecord in nameBatch)
                     {
-                        var person = new Person
+                        // Check if the person already exists in the context
+                        var existingPerson = await _dbContext.Persons.FirstOrDefaultAsync(p => p.Nconst == nameRecord.nconst);
+                        Person person;
+
+                        if (existingPerson != null)
                         {
-                            Nconst = nameRecord.nconst,
-                            PrimaryName = nameRecord.primaryName,
-                            BirthYear = TryParseInt(nameRecord.birthYear),
-                            DeathYear = TryParseNullableInt(nameRecord.deathYear)
-                        };
+                            // Use the existing person
+                            person = existingPerson;
+                        }
+                        else
+                        {
+                            // Create a new person
+                            person = new Person
+                            {
+                                Nconst = nameRecord.nconst,
+                                PrimaryName = nameRecord.primaryName,
+                                BirthYear = TryParseInt(nameRecord.birthYear),
+                                DeathYear = TryParseNullableInt(nameRecord.deathYear)
+                            };
+
+                            _dbContext.Persons.Add(person);
+                        }
 
                         // Link professions to person
                         var professionNames = nameRecord.primaryProfession.Split(',');
@@ -130,8 +145,6 @@ namespace IMDBLib.Services
                                 personProfessions.Add(new PersonProfession { Profession = profession, Person = person });
                             }
                         }
-
-                        _dbContext.Persons.Add(person);
                     }
 
                     await _dbContext.Professions.AddRangeAsync(professions);
@@ -155,16 +168,29 @@ namespace IMDBLib.Services
                             {
                                 if (!string.IsNullOrWhiteSpace(personId) && nameRecords.TryGetValue(personId, out NameBasicsRecord nameRecord))
                                 {
-                                    var person = new Person
+                                    var existingPerson = await _dbContext.Persons.FirstOrDefaultAsync(p => p.Nconst == nameRecord.nconst);
+                                    Person person;
+
+                                    if (existingPerson != null)
                                     {
-                                        Nconst = nameRecord.nconst,
-                                        PrimaryName = nameRecord.primaryName,
-                                        BirthYear = TryParseInt(nameRecord.birthYear),
-                                        DeathYear = TryParseNullableInt(nameRecord.deathYear)
-                                    };
+                                        // Use the existing person
+                                        person = existingPerson;
+                                    }
+                                    else
+                                    {
+                                        // Create a new person
+                                        person = new Person
+                                        {
+                                            Nconst = nameRecord.nconst,
+                                            PrimaryName = nameRecord.primaryName,
+                                            BirthYear = TryParseInt(nameRecord.birthYear),
+                                            DeathYear = TryParseNullableInt(nameRecord.deathYear)
+                                        };
+
+                                        _dbContext.Persons.Add(person);
+                                    }
 
                                     // Add the person and link to the title
-                                    _dbContext.Persons.Add(person);
                                     _dbContext.TitlePersons.Add(new TitlePerson { Person = person, Title = title });
                                 }
                             }
@@ -186,6 +212,7 @@ namespace IMDBLib.Services
                 Console.WriteLine($"Error occurred during data loading: {ex}");
             }
         }
+
 
 
 
