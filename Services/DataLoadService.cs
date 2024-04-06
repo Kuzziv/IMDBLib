@@ -89,9 +89,19 @@ namespace IMDBLib.Services
                         {
                             if (!string.IsNullOrWhiteSpace(genreName))
                             {
-                                var genre = new Genre { GenreName = genreName };
-                                genres.Add(genre);
-                                titleGenres.Add(new TitleGenre { Genre = genre, Title = title });
+                                var existingGenre = genres.FirstOrDefault(g => g.GenreName == genreName);
+                                if (existingGenre != null)
+                                {
+                                    // Use the existing genre
+                                    titleGenres.Add(new TitleGenre { Genre = existingGenre, Title = title });
+                                }
+                                else
+                                {
+                                    var genre = new Genre { GenreName = genreName };
+                                    _dbContext.Genres.Add(genre);
+                                    genres.Add(genre);
+                                    titleGenres.Add(new TitleGenre { Genre = genre, Title = title });
+                                }
                             }
                         }
 
@@ -142,11 +152,22 @@ namespace IMDBLib.Services
                         {
                             if (!string.IsNullOrWhiteSpace(professionName))
                             {
-                                var profession = new Profession { ProfessionName = professionName };
-                                professions.Add(profession);
-                                personProfessions.Add(new PersonProfession { Profession = profession, Person = person });
+                                var existingProfession = professions.FirstOrDefault(p => p.ProfessionName == professionName);
+                                if (existingProfession != null)
+                                {
+                                    // Use the existing profession
+                                    personProfessions.Add(new PersonProfession { Profession = existingProfession, Person = person });
+                                }
+                                else
+                                {
+                                    var profession = new Profession { ProfessionName = professionName };
+                                    _dbContext.Professions.Add(profession);
+                                    professions.Add(profession);
+                                    personProfessions.Add(new PersonProfession { Profession = profession, Person = person });
+                                }
                             }
                         }
+
                     }
 
                     await _dbContext.Professions.AddRangeAsync(professions);
