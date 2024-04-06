@@ -54,23 +54,28 @@ namespace IMDBLib.Services
 
 
         private async Task LinkAndSaveDataAsync(Dictionary<string, TitleBasicsRecord> titleRecords,
-                   Dictionary<string, NameBasicsRecord> nameRecords,
-                   Dictionary<string, CrewBasicsRecord> crewRecords,
-                   int batchSize,
-                   Action batchCompletedCallback)
+            Dictionary<string, NameBasicsRecord> nameRecords,
+            Dictionary<string, CrewBasicsRecord> crewRecords,
+            int batchSize,
+            Action batchCompletedCallback)
         {
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
             try
             {
+                var genres = new List<Genre>();
+                var titleGenres = new List<TitleGenre>();
+                var titles = new List<Title>();
+                var persons = new List<Person>();
+                var professions = new List<Profession>();
+                var titlePersons = new List<TitlePerson>();
+                var personProfessions = new List<PersonProfession>();
+
                 foreach (var titleBatch in titleRecords.Values.Batch(batchSize))
                 {
-                    var genres = new List<Genre>();
-                    var titleGenres = new List<TitleGenre>();
-
                     foreach (var titleRecord in titleBatch)
                     {
-                        var existingTitle = await _dbContext.Titles.FindAsync(titleRecord.tconst);
+                        var existingTitle = titles.FirstOrDefault(t => t.Tconst == titleRecord.tconst);
                         var title = existingTitle ?? new Title
                         {
                             Tconst = titleRecord.tconst,
@@ -98,19 +103,14 @@ namespace IMDBLib.Services
                                 else
                                 {
                                     var genre = new Genre { GenreName = genreName };
-                                    _dbContext.Genres.Add(genre);
                                     genres.Add(genre);
                                     titleGenres.Add(new TitleGenre { Genre = genre, Title = title });
                                 }
                             }
                         }
 
-                        if (existingTitle == null)
-                            _dbContext.Titles.Add(title);
+                        titles.Add(title);
                     }
-
-                    await _dbContext.Genres.AddRangeAsync(genres);
-                    await _dbContext.TitleGenres.AddRangeAsync(titleGenres);
 
                     // Report batch completion
                     batchCompletedCallback?.Invoke();
@@ -118,33 +118,16 @@ namespace IMDBLib.Services
 
                 foreach (var nameBatch in nameRecords.Values.Batch(batchSize))
                 {
-                    var professions = new List<Profession>();
-                    var personProfessions = new List<PersonProfession>();
-
                     foreach (var nameRecord in nameBatch)
                     {
-                        // Check if the person already exists in the context
-                        var existingPerson = await _dbContext.Persons.FirstOrDefaultAsync(p => p.Nconst == nameRecord.nconst);
-                        Person person;
-
-                        if (existingPerson != null)
+                        var existingPerson = persons.FirstOrDefault(p => p.Nconst == nameRecord.nconst);
+                        var person = existingPerson ?? new Person
                         {
-                            // Use the existing person
-                            person = existingPerson;
-                        }
-                        else
-                        {
-                            // Create a new person
-                            person = new Person
-                            {
-                                Nconst = nameRecord.nconst,
-                                PrimaryName = nameRecord.primaryName,
-                                BirthYear = TryParseInt(nameRecord.birthYear),
-                                DeathYear = TryParseNullableInt(nameRecord.deathYear)
-                            };
-
-                            _dbContext.Persons.Add(person);
-                        }
+                            Nconst = nameRecord.nconst,
+                            PrimaryName = nameRecord.primaryName,
+                            BirthYear = TryParseInt(nameRecord.birthYear),
+                            DeathYear = TryParseNullableInt(nameRecord.deathYear)
+                        };
 
                         // Link professions to person
                         var professionNames = nameRecord.primaryProfession.Split(',');
@@ -161,17 +144,14 @@ namespace IMDBLib.Services
                                 else
                                 {
                                     var profession = new Profession { ProfessionName = professionName };
-                                    _dbContext.Professions.Add(profession);
                                     professions.Add(profession);
                                     personProfessions.Add(new PersonProfession { Profession = profession, Person = person });
                                 }
                             }
                         }
 
+                        persons.Add(person);
                     }
-
-                    await _dbContext.Professions.AddRangeAsync(professions);
-                    await _dbContext.PersonProfessions.AddRangeAsync(personProfessions);
 
                     // Report batch completion
                     batchCompletedCallback?.Invoke();
@@ -181,7 +161,7 @@ namespace IMDBLib.Services
                 {
                     foreach (var crewRecord in crewBatch)
                     {
-                        var title = await _dbContext.Titles.FirstOrDefaultAsync(t => t.Tconst == crewRecord.tconst);
+                        var title = titles.FirstOrDefault(t => t.Tconst == crewRecord.tconst);
                         if (title != null)
                         {
                             var directorIds = crewRecord.directors.Split(',');
@@ -191,53 +171,76 @@ namespace IMDBLib.Services
                             {
                                 if (!string.IsNullOrWhiteSpace(personId) && nameRecords.TryGetValue(personId, out NameBasicsRecord nameRecord))
                                 {
-                                    var existingPerson = await _dbContext.Persons.FirstOrDefaultAsync(p => p.Nconst == nameRecord.nconst);
-                                    Person person;
-
-                                    if (existingPerson != null)
+                                    var existingPerson = persons.FirstOrDefault(p => p.Nconst == nameRecord.nconst);
+                                    var person = existingPerson ?? new Person
                                     {
-                                        // Use the existing person
-                                        person = existingPerson;
-                                    }
-                                    else
+                                        Nconst = nameRecord.nconst,
+                                        PrimaryName = nameRecord.primaryName,
+                                        BirthYear = TryParseInt(nameRecord.birthYear),
+                                        DeathYear = TryParseNullableInt(nameRecord.deathYear)
+                                    };
+
+                                    persons.Add(person);
+                                    var existingTitlePerson = titlePersons.FirstOrDefault(tp => tp.Person.Nconst == person.Nconst && tp.Title.Tconst == title.Tconst);
+                                    if (existingTitlePerson == null)
                                     {
-                                        // Create a new person
-                                        person = new Person
-                                        {
-                                            Nconst = nameRecord.nconst,
-                                            PrimaryName = nameRecord.primaryName,
-                                            BirthYear = TryParseInt(nameRecord.birthYear),
-                                            DeathYear = TryParseNullableInt(nameRecord.deathYear)
-                                        };
-
-                                        _dbContext.Persons.Add(person);
+                                        titlePersons.Add(new TitlePerson { Person = person, Title = title });
                                     }
-
-                                    // Add the person and link to the title
-                                    _dbContext.TitlePersons.Add(new TitlePerson { Person = person, Title = title });
                                 }
                             }
                         }
                     }
 
-                    await _dbContext.SaveChangesAsync(); // Add the task to the list
-
                     // Report batch completion
                     batchCompletedCallback?.Invoke();
                 }
+                // Log the start of data saving
+                await Console.Out.WriteLineAsync("Saving to database process has started...");
 
-                await transaction.CommitAsync(); // Commit the transaction
+                // Log the start of each data saving step
+                await Console.Out.WriteLineAsync("Starting to save genres...");
+                await _dbContext.Genres.AddRangeAsync(genres);
+                await Console.Out.WriteLineAsync("Genres save completed.");
+
+                await Console.Out.WriteLineAsync("Starting to save titles...");
+                await _dbContext.Titles.AddRangeAsync(titles);
+                await Console.Out.WriteLineAsync("Titles save completed.");
+
+                await Console.Out.WriteLineAsync("Starting to save title genres...");
+                await _dbContext.TitleGenres.AddRangeAsync(titleGenres);
+                await Console.Out.WriteLineAsync("Title genres save completed.");
+
+                await Console.Out.WriteLineAsync("Starting to save persons...");
+                await _dbContext.Persons.AddRangeAsync(persons);
+                await Console.Out.WriteLineAsync("Persons save completed.");
+
+                await Console.Out.WriteLineAsync("Starting to save professions...");
+                await _dbContext.Professions.AddRangeAsync(professions);
+                await Console.Out.WriteLineAsync("Professions save completed.");
+
+                await Console.Out.WriteLineAsync("Starting to save person professions...");
+                await _dbContext.PersonProfessions.AddRangeAsync(personProfessions);
+                await Console.Out.WriteLineAsync("Person professions save completed.");
+
+                await Console.Out.WriteLineAsync("Starting to save title persons...");
+                await _dbContext.TitlePersons.AddRangeAsync(titlePersons);
+                await Console.Out.WriteLineAsync("Title persons save completed.");
+
+                // Save changes to the database
+                await _dbContext.SaveChangesAsync();
+
+                // Commit the transaction
+                await transaction.CommitAsync();
                 Console.WriteLine("Database changes saved successfully");
+
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(); // Rollback the transaction in case of an exception
+                // Rollback the transaction in case of an exception
+                await transaction.RollbackAsync();
                 Console.WriteLine($"Error occurred during data loading: {ex}");
             }
         }
-
-
-
 
 
         private int TryParseInt(string value)
