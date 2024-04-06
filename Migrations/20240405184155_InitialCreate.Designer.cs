@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace IMDBLib.Migrations
 {
-    [DbContext(typeof(YourDbContext))]
+    [DbContext(typeof(IMDBDbContext))]
     [Migration("20240405184155_InitialCreate")]
     partial class InitialCreate
     {

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace IMDBLib.DataBase
 {
-    public class YourDbContext : DbContext
+    public class IMDBDbContext : DbContext
     {
         // DbSet properties to represent database tables
         public DbSet<Title> Titles { get; set; }
@@ -18,7 +18,9 @@ namespace IMDBLib.DataBase
         // Configure database connection and provider
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer(@"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=IMDB;Integrated Security=True;Connect Timeout=30;Encrypt=False;Trust Server Certificate=False;Application Intent=ReadWrite;Multi Subnet Failover=False");
+            optionsBuilder
+                .UseSqlServer(@"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=IMDB;Integrated Security=True;Connect Timeout=30;Encrypt=False;Trust Server Certificate=False;Application Intent=ReadWrite;Multi Subnet Failover=False")
+                .EnableSensitiveDataLogging(true);
         }
 
         // Configure entity relationships and primary keys
