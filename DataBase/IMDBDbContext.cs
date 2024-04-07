@@ -1,5 +1,6 @@
 ﻿using IMDBLib.Models.Movie;
 using IMDBLib.Models.People;
+using IMDBLib.Models.Views;
 using Microsoft.EntityFrameworkCore;
 
 namespace IMDBLib.DataBase
@@ -14,6 +15,10 @@ namespace IMDBLib.DataBase
         public DbSet<TitleGenre> TitleGenres { get; set; }
         public DbSet<TitlePerson> TitlePersons { get; set; }
         public DbSet<PersonProfession> PersonProfessions { get; set; }
+
+        // DbSet properties to represent database views
+        public DbSet<MovieView> MovieViews { get; set; }
+        public DbSet<PersonView> PersonViews { get; set; }
 
         // Configure database connection and provider
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -65,6 +70,10 @@ namespace IMDBLib.DataBase
                 .HasMany(p => p.PersonProfessions)
                 .WithOne(pp => pp.Profession)
                 .HasForeignKey(pp => pp.ProfessionId);
+
+            // Map views to entities
+            modelBuilder.Entity<MovieView>().ToView("MovieView").HasNoKey();
+            modelBuilder.Entity<PersonView>().ToView("PersonView").HasNoKey();
         }
     }
 }
