@@ -3,6 +3,7 @@ using IMDBLib.DTO;
 using IMDBLib.Models.Movie;
 using IMDBLib.Models.Views;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,17 +14,22 @@ namespace IMDBLib.Services.APIServices
     public class MovieService : IMovieService
     {
         private readonly IMDBDbContext _dbContext;
+        private readonly ILogger<MovieService> _logger;
 
-        public MovieService(IMDBDbContext dbContext)
+        public MovieService(IMDBDbContext dbContext, ILogger<MovieService> logger)
         {
-            _dbContext = dbContext;
+            _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+            _logger = logger;
         }
 
         // Search movies by title asynchronously
-        public async Task<IEnumerable<MovieView>> SearchByMovieTitleAsync(string searchTitle, int page, int pageSize)
+        public async Task<IEnumerable<MovieDTO>> SearchByMovieTitleAsync(string searchTitle, int page, int pageSize)
         {
             try
             {
+                if (string.IsNullOrEmpty(searchTitle))
+                    throw new ArgumentException("Search title cannot be null or empty.");
+
                 var query = _dbContext.MovieViews
                     .Where(m => m.PrimaryTitle.Contains(searchTitle));
 
@@ -32,65 +38,67 @@ namespace IMDBLib.Services.APIServices
                     .Take(pageSize)
                     .ToListAsync();
 
-                return movies;
+                return MapMovieViewToMovieDto(movies);
             }
             catch (Exception ex)
             {
-                // Log error and throw exception
-                Console.WriteLine($"An error occurred while searching for movies by title: {ex}");
-                throw new Exception("Failed to search for movies by title.", ex);
+                _logger.LogError(ex, $"An error occurred while searching for movies by title: {ex.Message}");
+                throw;
             }
         }
 
         // Get all movies asynchronously
-        public async Task<IEnumerable<MovieView>> GetAllMoviesAsync(int page, int pageSize)
+        public async Task<IEnumerable<MovieDTO>> GetAllMoviesAsync(int page, int pageSize)
         {
             try
             {
-                var query = _dbContext.MovieViews;
-
-                var movies = await query
+                var movies = await _dbContext.MovieViews
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
 
-                return movies;
+                return MapMovieViewToMovieDto(movies);
             }
             catch (Exception ex)
             {
-                // Log error and throw exception
-                Console.WriteLine($"An error occurred while fetching all movies: {ex}");
-                throw new Exception("Failed to fetch all movies.", ex);
+                _logger.LogError(ex, $"An error occurred while fetching all movies: {ex.Message}");
+                throw;
             }
         }
 
         // Get movie by Tconst asynchronously
-        public async Task<MovieView> GetMovieByTconstAsync(string movieTconst)
+        public async Task<MovieDTO> GetMovieByTconstAsync(string movieTconst)
         {
             try
             {
+                if (string.IsNullOrEmpty(movieTconst))
+                    throw new ArgumentException("Movie Tconst cannot be null or empty.");
+
                 var movie = await _dbContext.MovieViews
                     .FirstOrDefaultAsync(m => m.Tconst == movieTconst);
 
-                return movie;
+                return MapMovieViewToMovieDto(movie);
             }
             catch (Exception ex)
             {
-                // Log error and throw exception
-                Console.WriteLine($"An error occurred while fetching movie by Tconst: {ex}");
-                throw new Exception("Failed to fetch movie by Tconst.", ex);
+                _logger.LogError(ex, $"An error occurred while fetching movie by Tconst: {ex.Message}");
+                throw;
             }
         }
 
         // Add a new movie asynchronously
         public async Task<bool> AddMovieAsync(MovieDTO movie)
         {
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
             try
             {
-                // Create a new Title entity
+                if (movie == null)
+                    throw new ArgumentNullException(nameof(movie), "Movie DTO cannot be null.");
+
                 var title = new Title
                 {
-                    Tconst = await GetNewTconstasync(),
+                    Tconst = await GetNewTconstAsync(),
                     TitleType = movie.TitleType,
                     PrimaryTitle = movie.PrimaryTitle,
                     OriginalTitle = movie.OriginalTitle,
@@ -100,97 +108,95 @@ namespace IMDBLib.Services.APIServices
                     RuntimeMinutes = movie.RuntimeMinutes
                 };
 
-                // Add the Title entity to the database context
                 _dbContext.Titles.Add(title);
 
-                // Loop through genre names and associate them with the title
                 foreach (var genreName in movie.GenreNames)
                 {
-                    // Check if genre exists in the database
-                    var existingGenre = await _dbContext.Genres.FirstOrDefaultAsync(g => g.GenreName == genreName);
+                    if (string.IsNullOrWhiteSpace(genreName))
+                        continue; // Skip empty or whitespace genre names
+
+                    var existingGenre = await _dbContext.Genres
+                        .FirstOrDefaultAsync(g => g.GenreName == genreName);
+
                     if (existingGenre == null)
                     {
-                        // If genre does not exist, create a new one
-                        existingGenre = new Genre
-                        {
-                            GenreName = genreName
-                        };
+                        existingGenre = new Genre { GenreName = genreName };
                         _dbContext.Genres.Add(existingGenre);
                     }
 
-                    // Associate the genre with the title
-                    var titleGenre = new TitleGenre { Title = title, Genre = existingGenre };
-                    _dbContext.TitleGenres.Add(titleGenre);
+                    // Ensure TitleGenres collection is initialized
+                    if (title.TitleGenres == null)
+                    {
+                        title.TitleGenres = new List<TitleGenre>();
+                    }
+
+                    title.TitleGenres.Add(new TitleGenre { Genre = existingGenre });
                 }
 
-                // Save changes to the database
                 await _dbContext.SaveChangesAsync();
+
+                // Commit the transaction if all operations succeed
+                await transaction.CommitAsync();
+
                 return true;
             }
             catch (Exception ex)
             {
-                // Log error and throw exception
-                Console.WriteLine($"An error occurred while adding movie: {ex}");
-                throw new Exception("Failed to add movie.", ex);
+                // Rollback the transaction if any operation fails
+                await transaction.RollbackAsync();
+
+                _logger.LogError(ex, $"An error occurred while adding movie: {ex.Message}");
+                throw;
             }
         }
+
 
         // Update existing movie asynchronously
         public async Task<bool> UpdateMovieAsync(string movieTconst, MovieDTO updatedMovie)
         {
             try
-            {
-                // Find the existing movie in the database
+            {                
+                if (string.IsNullOrEmpty(movieTconst))
+                    throw new ArgumentException("Movie Tconst cannot be null or empty.");
+
                 var existingMovie = await _dbContext.Titles
                     .Include(m => m.TitleGenres)
                     .ThenInclude(tg => tg.Genre)
                     .FirstOrDefaultAsync(m => m.Tconst == movieTconst);
 
-                // If movie doesn't exist, return false
                 if (existingMovie == null)
                     return false;
 
-                // Check if any changes have been made to the movie attributes
-                bool anyChanges = existingMovie.TitleType != updatedMovie.TitleType ||
-                                  existingMovie.PrimaryTitle != updatedMovie.PrimaryTitle ||
-                                  existingMovie.OriginalTitle != updatedMovie.OriginalTitle ||
-                                  existingMovie.IsAdult != updatedMovie.IsAdult ||
-                                  existingMovie.StartYear != updatedMovie.StartYear ||
-                                  existingMovie.EndYear != updatedMovie.EndYear ||
-                                  existingMovie.RuntimeMinutes != updatedMovie.RuntimeMinutes;
+                MapMovieDtoToTitle(updatedMovie, existingMovie);
 
-                // Update movie attributes if changes were made
-                if (anyChanges)
-                {
-                    existingMovie.TitleType = updatedMovie.TitleType;
-                    existingMovie.PrimaryTitle = updatedMovie.PrimaryTitle;
-                    existingMovie.OriginalTitle = updatedMovie.OriginalTitle;
-                    existingMovie.IsAdult = updatedMovie.IsAdult;
-                    existingMovie.StartYear = updatedMovie.StartYear;
-                    existingMovie.EndYear = updatedMovie.EndYear;
-                    existingMovie.RuntimeMinutes = updatedMovie.RuntimeMinutes;
-                }
-
-                // Update genres
                 existingMovie.TitleGenres.Clear();
                 foreach (var genreName in updatedMovie.GenreNames)
                 {
-                    var existingGenre = existingMovie.TitleGenres.FirstOrDefault(tg => tg.Genre.GenreName == genreName)?.Genre
-                                        ?? new Genre { GenreName = genreName };
-                    existingMovie.TitleGenres.Add(new TitleGenre { Title = existingMovie, Genre = existingGenre });
+                    if (string.IsNullOrWhiteSpace(genreName))
+                        continue; // Skip empty or whitespace genre names
+
+                    var existingGenre = await _dbContext.Genres.FirstOrDefaultAsync(g => g.GenreName == genreName);
+                    if (existingGenre == null)
+                    {
+                        existingGenre = new Genre { GenreName = genreName };
+                        _dbContext.Genres.Add(existingGenre);
+                    }
+
+                    // Ensure TitleGenres collection is initialized
+                    if (existingMovie.TitleGenres == null)
+                        existingMovie.TitleGenres = new List<TitleGenre>();
+
+                    existingMovie.TitleGenres.Add(new TitleGenre { Genre = existingGenre });
                 }
+                // Associate genres with title asynchronously
 
-                // Save changes to the database
                 await _dbContext.SaveChangesAsync();
-
-                // Return true indicating success
                 return true;
             }
             catch (Exception ex)
             {
-                // Log error and throw exception
-                Console.WriteLine($"An error occurred while updating movie: {ex}");
-                throw new Exception("Failed to update movie.", ex);
+                _logger.LogError(ex, $"An error occurred while updating movie: {ex.Message}");
+                throw;
             }
         }
 
@@ -199,6 +205,9 @@ namespace IMDBLib.Services.APIServices
         {
             try
             {
+                if (string.IsNullOrEmpty(movieTconst))
+                    throw new ArgumentException("Movie Tconst cannot be null or empty.");
+
                 var movie = await _dbContext.Titles.FindAsync(movieTconst);
                 if (movie != null)
                 {
@@ -210,23 +219,73 @@ namespace IMDBLib.Services.APIServices
             }
             catch (Exception ex)
             {
-                // Log error and throw exception
-                Console.WriteLine($"An error occurred while deleting movie: {ex}");
-                throw new Exception("Failed to delete movie.", ex);
+                _logger.LogError(ex, $"An error occurred while deleting movie: {ex.Message}");
+                throw;
             }
         }
 
         // Get the highest Tconst and increment it by 1 to generate a new Tconst asynchronously
-        private async Task<string> GetNewTconstasync()
+        private async Task<string> GetNewTconstAsync()
         {
-            // get the highest tconst from the database
             var highestTconst = await _dbContext.Titles
                 .OrderByDescending(t => t.Tconst)
                 .FirstOrDefaultAsync();
 
-            // increment the highest tconst by 1
-            var newTconst = (int.Parse(highestTconst.Tconst.Substring(2)) + 1).ToString();
-            return newTconst;
+            if (highestTconst == null)
+            {
+                // If no existing Tconst found, start with the minimum value (assuming "tt0000001")
+                return "tt0000001";
+            }
+            else
+            {
+                // Parse the current Tconst number
+                if (int.TryParse(highestTconst.Tconst.Substring(2), out int currentNumber))
+                {
+                    // Increment the number and format it with leading zeros
+                    string newTconst = $"tt{currentNumber + 1:D7}";
+                    return newTconst;
+                }
+                else
+                {
+                    // If parsing fails, handle the error accordingly
+                    throw new InvalidOperationException("Unable to parse Tconst number.");
+                }
+            }
+        }
+
+        // Map MovieDTO properties to Title entity
+        private void MapMovieDtoToTitle(MovieDTO movieDto, Title title)
+        {        
+            title.TitleType = movieDto.TitleType;
+            title.PrimaryTitle = movieDto.PrimaryTitle;
+            title.OriginalTitle = movieDto.OriginalTitle;
+            title.IsAdult = movieDto.IsAdult;
+            title.StartYear = movieDto.StartYear;
+            title.EndYear = movieDto.EndYear;
+            title.RuntimeMinutes = movieDto.RuntimeMinutes;
+        }
+
+        // Map MovieView properties to MovieDTO entity
+        private MovieDTO MapMovieViewToMovieDto(MovieView movieView)
+        {
+            return new MovieDTO
+            {
+                Tconst = movieView.Tconst,
+                TitleType = movieView.TitleType,
+                PrimaryTitle = movieView.PrimaryTitle,
+                OriginalTitle = movieView.OriginalTitle,
+                IsAdult = movieView.IsAdult,
+                StartYear = movieView.StartYear,
+                EndYear = movieView.EndYear,
+                RuntimeMinutes = movieView.RuntimeMinutes,
+                GenreNames = movieView.GenreNames.Split(',').ToList()
+            };
+        }
+
+        // Map MovieView properties to MovieDTO entity (overload for list)
+        private List<MovieDTO> MapMovieViewToMovieDto(List<MovieView> moviesView)
+        {
+            return moviesView.Select(m => MapMovieViewToMovieDto(m)).ToList();
         }
     }
 }

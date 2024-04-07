@@ -20,6 +20,11 @@ namespace IMDBLib.DataBase
         public DbSet<MovieView> MovieViews { get; set; }
         public DbSet<PersonView> PersonViews { get; set; }
 
+        public IMDBDbContext(DbContextOptions<IMDBDbContext> options) : base(options)
+        {
+
+        }
+
         // Configure database connection and provider
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

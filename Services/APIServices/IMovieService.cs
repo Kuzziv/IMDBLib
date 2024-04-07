@@ -12,9 +12,9 @@ namespace IMDBLib.Services.APIServices
 {
     public interface IMovieService
     {
-        Task<IEnumerable<MovieView>> SearchByMovieTitleAsync(string searchTitle, int page, int pageSize);
-        Task<IEnumerable<MovieView>> GetAllMoviesAsync(int page, int pageSize);
-        Task<MovieView> GetMovieByTconstAsync(string movieTconst);
+        Task<IEnumerable<MovieDTO>> SearchByMovieTitleAsync(string searchTitle, int page, int pageSize);
+        Task<IEnumerable<MovieDTO>> GetAllMoviesAsync(int page, int pageSize);
+        Task<MovieDTO> GetMovieByTconstAsync(string movieTconst);
         Task<bool> AddMovieAsync(MovieDTO movie);
         Task<bool> UpdateMovieAsync(string movieTconst, MovieDTO updatedMovie);
         Task<bool> DeleteMovieAsync(string movieTconst);

@@ -11,9 +11,9 @@ namespace IMDBLib.Services.APIServices
 {
     public interface IPersonService
     {
-        Task<PersonView> GetPersonByIdAsync(string nmconst);
-        Task<IEnumerable<PersonView>> GetAllPersonsAsync(int page, int pageSize);
-        Task AddPersonAsync(PersonDTO person);
-        Task<IEnumerable<PersonView>> SearchPersonsByNameAsync(string searchName, int page, int pageSize);
+        Task<PersonDTO> GetPersonByNmconstAsync(string nmconst);
+        Task<IEnumerable<PersonDTO>> GetAllPersonsAsync(int page, int pageSize);
+        Task<bool> AddPersonAsync(PersonDTO person);
+        Task<IEnumerable<PersonDTO>> SearchPersonsByNameAsync(string searchName, int page, int pageSize);
     }
 }
