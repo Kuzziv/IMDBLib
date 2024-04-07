@@ -1,4 +1,5 @@
-﻿using IMDBLib.Models.People;
+﻿using IMDBLib.DTO;
+using IMDBLib.Models.People;
 using IMDBLib.Models.Views;
 using System;
 using System.Collections.Generic;
@@ -12,7 +13,7 @@ namespace IMDBLib.Services.APIServices
     {
         Task<PersonView> GetPersonByIdAsync(string nmconst);
         Task<IEnumerable<PersonView>> GetAllPersonsAsync(int page, int pageSize);
-        Task AddPersonAsync(Person person);
+        Task AddPersonAsync(PersonDTO person);
         Task<IEnumerable<PersonView>> SearchPersonsByNameAsync(string searchName, int page, int pageSize);
     }
 }

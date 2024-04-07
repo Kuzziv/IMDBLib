@@ -1,4 +1,5 @@
-﻿using IMDBLib.Models.Movie;
+﻿using IMDBLib.DTO;
+using IMDBLib.Models.Movie;
 using IMDBLib.Models.People;
 using IMDBLib.Models.Views;
 using System;
@@ -14,8 +15,8 @@ namespace IMDBLib.Services.APIServices
         Task<IEnumerable<MovieView>> SearchByMovieTitleAsync(string searchTitle, int page, int pageSize);
         Task<IEnumerable<MovieView>> GetAllMoviesAsync(int page, int pageSize);
         Task<MovieView> GetMovieByTconstAsync(string movieTconst);
-        Task AddMovieAsync(Title movie);
-        Task UpdateMovieAsync(string movieTconst, Title updatedMovie);
-        Task DeleteMovieAsync(string movieTconst);
+        Task<bool> AddMovieAsync(MovieDTO movie);
+        Task<bool> UpdateMovieAsync(string movieTconst, MovieDTO updatedMovie);
+        Task<bool> DeleteMovieAsync(string movieTconst);
     }
 }

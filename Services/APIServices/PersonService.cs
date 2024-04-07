@@ -1,4 +1,5 @@
 ﻿using IMDBLib.DataBase;
+using IMDBLib.DTO;
 using IMDBLib.Models.People;
 using IMDBLib.Models.Views;
 using Microsoft.EntityFrameworkCore;
@@ -18,12 +19,11 @@ namespace IMDBLib.Services.APIServices
             _dbContext = dbContext;
         }
 
-        public async Task AddPersonAsync(Person person)
+        public async Task AddPersonAsync(PersonDTO person)
         {
             try
             {
-                _dbContext.Persons.Add(person);
-                await _dbContext.SaveChangesAsync();
+
             }
             catch (Exception ex)
             {
@@ -87,6 +87,19 @@ namespace IMDBLib.Services.APIServices
                 Console.WriteLine($"An error occurred while searching persons by name: {ex}");
                 throw new Exception("Failed to search persons by name.", ex);
             }
+        }
+
+        private async Task<string> GetNewNconst()
+        {
+            // get the higest nconst from the database
+            var highestNconst = await _dbContext.Persons
+                .OrderByDescending(p => p.Nconst)
+                .FirstOrDefaultAsync();
+
+            // increment the highest nconst by 1
+            var newNconst = (int.Parse(highestNconst.Nconst.Substring(2)) + 1).ToString();
+
+            return newNconst;
         }
     }
 }
