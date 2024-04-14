@@ -5,7 +5,7 @@
 namespace IMDBLib.Migrations
 {
     /// <inheritdoc />
-    public partial class nr5 : Migration
+    public partial class AddViews : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
