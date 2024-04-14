@@ -38,6 +38,9 @@ namespace IMDBLib.Services.APIServices
                     .Take(pageSize)
                     .ToListAsync();
 
+                if (movies == null || movies.Count == 0)
+                    return null;
+
                 return MapMovieViewToMovieDto(movies);
             }
             catch (Exception ex)
@@ -76,6 +79,9 @@ namespace IMDBLib.Services.APIServices
 
                 var movie = await _dbContext.MovieViews
                     .FirstOrDefaultAsync(m => m.Tconst == movieTconst);
+
+                if (movie == null)
+                    return null;
 
                 return MapMovieViewToMovieDto(movie);
             }

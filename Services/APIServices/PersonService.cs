@@ -106,6 +106,9 @@ namespace IMDBLib.Services.APIServices
                 var person = await _dbContext.PersonViews
                     .FirstOrDefaultAsync(p => p.Nconst == nmconst);
 
+                if (person == null)
+                    return null;
+
                 return MapPersonViewToPersonDto(person);
             }
             catch (Exception ex)
@@ -127,6 +130,9 @@ namespace IMDBLib.Services.APIServices
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
+
+                if (persons == null || persons.Count == 0)
+                    return null;
 
                 return MapPersonViewToPersonDto(persons);
             }
